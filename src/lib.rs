@@ -169,6 +169,7 @@ fn is_symbol_line(buffer: &str, counter: &mut i32) -> bool {
 
 fn get_address_increment(directive: &String, operand: &String) -> i32 {
     let address_increment;
+    let len = operand.len() - 4;
     match directive.as_str() {
         "RESB" => {
             address_increment = operand.parse::<i32>().unwrap();
@@ -176,17 +177,20 @@ fn get_address_increment(directive: &String, operand: &String) -> i32 {
         "RESW" => {
             address_increment = (operand.parse::<i32>().unwrap()) * 3;
         }
-        "BYTE" => {
-            // BYTE is a bit special, because there's two forms of BYTE
-            // There's the Character BYTE, and the Hex BYTE.
-            // CBYTE adds 1 byte for every character, whereas HBYTE adds
-            // 1 nibble (half-byte) for every hex character (or in simpler
-            // terms, 1 byte for every two hex characters). As a result,
-            // it is necessary to discern which version of BYTE we are dealing
-            // with.
-            // Do keep in mind that BYTE operands come in the form of N'...',
-            // where N is either C (for character), or X (for hexadecimal)
-            todo!();
+        // BYTE is a bit special, because there's two forms of BYTE
+        // There's the Character BYTE, and the Hex BYTE.
+        // CBYTE adds 1 byte for every character, whereas HBYTE adds
+        // 1 nibble (half-byte) for every hex character (or in simpler
+        // terms, 1 byte for every two hex characters). As a result,
+        // it is necessary to discern which version of BYTE we are dealing
+        // with.
+        // Do keep in mind that BYTE operands come in the form of N'...',
+        // where N is either C (for character), or X (for hexadecimal)
+        "BYTE" if operand.starts_with('C') => {
+            address_increment = len as i32;
+        }
+        "BYTE" if operand.starts_with('X') => {
+            address_increment = len as i32 / 2;
         }
         _ => {
             address_increment = 3;
