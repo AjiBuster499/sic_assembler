@@ -119,16 +119,21 @@ pub fn run(config: Config) -> Result<(), &'static str> {
                 broken_line[2].to_string(),
             );
 
+            // START directive, aka first line.
+            // This means that we have to set the address and move on.
             if line.directive().unwrap() == "START" {
-                address_counter += line.operand.unwrap().parse::<i32>().unwrap();
+                address_counter += line.operand().unwrap().parse::<i32>().unwrap();
                 continue;
             }
 
             if let Some(symbol_name) = line.symbol() {
                 symbol_table.push(Symbol::new(symbol_name.to_string(), address_counter));
             }
+            // Call function to determine address increment here
+            let address_increment =
+                get_address_increment(line.directive().unwrap(), line.operand().unwrap());
 
-            address_counter += 3;
+            address_counter += address_increment;
         }
     }
 
@@ -160,4 +165,33 @@ fn is_symbol_line(buffer: &str, counter: &mut i32) -> bool {
     }
 
     false
+}
+
+fn get_address_increment(directive: &String, operand: &String) -> i32 {
+    let address_increment;
+    match directive.as_str() {
+        "RESB" => {
+            address_increment = operand.parse::<i32>().unwrap();
+        }
+        "RESW" => {
+            address_increment = (operand.parse::<i32>().unwrap()) * 3;
+        }
+        "BYTE" => {
+            // BYTE is a bit special, because there's two forms of BYTE
+            // There's the Character BYTE, and the Hex BYTE.
+            // CBYTE adds 1 byte for every character, whereas HBYTE adds
+            // 1 nibble (half-byte) for every hex character (or in simpler
+            // terms, 1 byte for every two hex characters). As a result,
+            // it is necessary to discern which version of BYTE we are dealing
+            // with.
+            // Do keep in mind that BYTE operands come in the form of N'...',
+            // where N is either C (for character), or X (for hexadecimal)
+            todo!();
+        }
+        _ => {
+            address_increment = 3;
+        }
+    }
+
+    address_increment
 }
