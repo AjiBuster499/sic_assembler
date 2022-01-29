@@ -107,17 +107,15 @@ pub fn run(config: Config) -> Result<(), &'static str> {
             // START directive, aka first line.
             // This means that we have to set the address and move on.
             if line.directive().unwrap() == "START" {
-                // address comes in as a hex string, need to convert to decimal
-                let address_as_hex = i32::from_str_radix(line.operand().unwrap(), 16).unwrap();
-
-                address_counter += address_as_hex;
+                let address_as_hex = hex::decode(line.operand().unwrap());
+                println!("{:?}", address_as_hex);
+                address_counter += address_as_hex.unwrap().first().unwrap();
                 continue;
             }
-            // Add new symbol to symbol table
+
             if let Some(symbol_name) = line.symbol() {
                 symbol_table.push(Symbol::new(symbol_name.to_string(), address_counter));
             }
-
             // Call function to determine address increment here
             let address_increment =
                 get_address_increment(line.directive().unwrap(), line.operand().unwrap());
@@ -128,7 +126,7 @@ pub fn run(config: Config) -> Result<(), &'static str> {
 
     // print the symbol table
     for entry in symbol_table {
-        println!("{}\t{:X}", entry.name(), entry.address());
+        println!("{}\t{}", entry.name(), entry.address());
     }
 
     Ok(())
@@ -173,7 +171,6 @@ fn get_address_increment(directive: &String, operand: &String) -> i32 {
             let len = operand.len() - 4;
             address_increment = len as i32 / 2;
         }
-        "END" => address_increment = 0,
         _ => {
             address_increment = 3;
         }
