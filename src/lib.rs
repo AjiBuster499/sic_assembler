@@ -8,7 +8,7 @@ use std::{
     collections::HashMap,
     env,
     fs::File,
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Seek},
     vec,
 };
 use symbols::Symbol;
@@ -105,7 +105,7 @@ pub fn run(config: Config) -> Result<(), &'static str> {
             }
 
             // check for symbol line
-            if !(is_symbol_line(&buffer, &mut address_counter)) {
+            if is_symbol_line(&buffer, &mut address_counter) != 1 {
                 // not a symbol line
                 continue 'pass1;
             }
@@ -140,6 +140,40 @@ pub fn run(config: Config) -> Result<(), &'static str> {
         }
     }
 
+    // pass 2 loop: Creating the records
+    let _starting_address = 0; // preserve the old starting address
+    let mut _length = 3; // default length of object code
+    let _text_index = 0; // used for text records (maybe unneeded with Rust)
+
+    reader.rewind().unwrap();
+
+    'pass2: loop {
+        buffer.clear();
+        if let Ok(line) = reader.read_line(&mut buffer) {
+            if line == 0 {
+                break 'pass2;
+            }
+
+            match is_symbol_line(&buffer, &mut address_counter) {
+                0 => { // symbol line
+                }
+                1 => {
+                    // non-symbol assembly line
+                    // add the symbol to the symbol table
+                    let broken_line: Vec<&str> = buffer.split_ascii_whitespace().collect();
+                    let line = AssemblyLine::new(
+                        broken_line[0].to_string(),
+                        broken_line[1].to_string(),
+                        broken_line[2].to_string(),
+                    );
+                }
+                _ => {
+                    continue 'pass2;
+                }
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -153,16 +187,22 @@ fn is_memory_out_of_bounds(current_counter: &i32) -> bool {
 }
 
 // Checks if line has a symbol
-fn is_symbol_line(buffer: &str, counter: &mut i32) -> bool {
+// returns an i32 as follows:
+// 0: Symbol Line
+// 1: Non-symbol assembly Line
+// -1: Non-assembly line
+fn is_symbol_line(buffer: &str, counter: &mut i32) -> i32 {
     if buffer.starts_with('\t') {
         *counter += 3;
+        return 1;
     } else if buffer.starts_with('#') {
         // do nothing
     } else {
-        return true;
+        // symbol line
+        return 0;
     }
 
-    false
+    -1
 }
 
 // returns the address increment
