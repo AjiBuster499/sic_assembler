@@ -1,5 +1,7 @@
 /* Logic for the Rusty SIC Assembler
 */
+
+#![allow(unused, dead_code)]
 mod data_records;
 mod symbols;
 
@@ -45,11 +47,11 @@ pub struct AssemblyLine {
 }
 
 impl AssemblyLine {
-    pub fn new(sym: String, dir: String, op: String) -> Self {
+    pub fn new(sym: Option<String>, dir: Option<String>, op: Option<String>) -> Self {
         AssemblyLine {
-            symbol: Some(sym),
-            directive: Some(dir),
-            operand: Some(op),
+            symbol: sym,
+            directive: dir,
+            operand: op,
         }
     }
 
@@ -113,9 +115,9 @@ pub fn run(config: Config) -> Result<(), &'static str> {
             // add the symbol to the symbol table
             let broken_line: Vec<&str> = buffer.split_ascii_whitespace().collect();
             let line = AssemblyLine::new(
-                broken_line[0].to_string(),
-                broken_line[1].to_string(),
-                broken_line[2].to_string(),
+                Some(broken_line[0].to_string()),
+                Some(broken_line[1].to_string()),
+                Some(broken_line[2].to_string()),
             );
 
             // START directive, aka first line.
@@ -145,7 +147,7 @@ pub fn run(config: Config) -> Result<(), &'static str> {
     let mut _length = 3; // default length of object code
     let _text_index = 0; // used for text records (maybe unneeded with Rust)
 
-    reader.rewind().unwrap();
+    reader.rewind().unwrap(); // reset the reader
 
     'pass2: loop {
         buffer.clear();
@@ -156,21 +158,40 @@ pub fn run(config: Config) -> Result<(), &'static str> {
 
             match is_symbol_line(&buffer, &mut address_counter) {
                 0 => { // symbol line
+                     // just fall through to the symbol
                 }
                 1 => {
                     // non-symbol assembly line
-                    // add the symbol to the symbol table
+                    // tokenize the line
                     let broken_line: Vec<&str> = buffer.split_ascii_whitespace().collect();
                     let line = AssemblyLine::new(
-                        broken_line[0].to_string(),
-                        broken_line[1].to_string(),
-                        broken_line[2].to_string(),
+                        None,
+                        Some(broken_line[1].to_string()),
+                        Some(broken_line[2].to_string()),
                     );
+
+                    let increment =
+                        get_address_increment(line.directive().unwrap(), line.operand().unwrap());
+
+                    address_counter += increment;
+                    continue 'pass2;
                 }
                 _ => {
+                    // comment line
                     continue 'pass2;
                 }
             }
+
+            // tokenize the line containing a symbol
+            let broken_line: Vec<&str> = buffer.split_ascii_whitespace().collect();
+            let line = AssemblyLine::new(
+                Some(broken_line[0].to_string()),
+                Some(broken_line[1].to_string()),
+                Some(broken_line[2].to_string()),
+            );
+
+            let increment =
+                get_address_increment(line.directive().unwrap(), line.operand().unwrap());
         }
     }
 
