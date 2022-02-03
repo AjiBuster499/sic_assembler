@@ -5,6 +5,7 @@ mod symbols;
 
 use data_records::ObjectData;
 use std::{
+    collections::HashMap,
     env,
     fs::File,
     io::{BufRead, BufReader},
@@ -80,6 +81,14 @@ pub fn run(config: Config) -> Result<(), &'static str> {
     let mut reader = BufReader::new(sic_asm_file);
     let mut buffer = String::new();
 
+    // Key is instruction, value is opcode
+    let mut opcodes_lists: HashMap<&str, &str> = HashMap::new();
+
+    initalize_opcodes(&mut opcodes_lists);
+
+    for (k, v) in opcodes_lists {
+        println!("Instruction: {:}, Opcode: {:}", k, v);
+    }
     // main loop
     'pass1: loop {
         buffer.clear();
@@ -129,11 +138,6 @@ pub fn run(config: Config) -> Result<(), &'static str> {
 
             address_counter += address_increment;
         }
-    }
-
-    // print the symbol table
-    for entry in symbol_table {
-        println!("{}\t{:X}", entry.name(), entry.address());
     }
 
     Ok(())
@@ -190,7 +194,7 @@ fn get_address_increment(directive: &String, operand: &String) -> i32 {
 
 // initializes the opcodes for the SIC machine
 // This WILL be painful to read
-fn initalize_opcodes() {
+fn initalize_opcodes(opcodes_lists: &mut HashMap<&str, &str>) {
     let instructions = vec![
         "ADD", "AND", "COMP", "DIV", "J", "JEQ", "JGT", "JLT", "JSUB", "LDA", "LDCH", "LDL", "LDX",
         "MUL", "OR", "RD", "RSUB", "STA", "STCH", "STL", "STSW", "STX", "SUB", "TD", "TIX", "WD",
@@ -199,4 +203,8 @@ fn initalize_opcodes() {
         "18", "40", "28", "24", "3C", "30", "34", "38", "48", "00", "50", "08", "04", "20", "44",
         "D8", "4C", "0C", "54", "14", "E8", "10", "1C", "E0", "2C", "DC",
     ];
+
+    for index in 0..instructions.len() {
+        opcodes_lists.insert(opcodes[index], instructions[index]);
+    }
 }
