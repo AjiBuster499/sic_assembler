@@ -1,16 +1,20 @@
 /* Logic for the Rusty SIC Assembler
 */
+mod data_records;
 mod symbols;
 
+use data_records::ObjectData;
 use std::{
     env,
     fs::File,
     io::{BufRead, BufReader},
+    vec,
 };
 use symbols::Symbol;
 
 const MAX_MEMORY: i32 = 0x7FFF;
 // Holds inputted args (for now, just filename)
+// maybe future uses can include flags
 pub struct Config {
     filename: String,
 }
@@ -19,6 +23,7 @@ impl Config {
     pub fn new(mut args: env::Args) -> Result<Config, &'static str> {
         args.next(); // discard the program itself
 
+        // get the fileName from the next argument
         let fname = match args.next() {
             Some(args) => args,
             None => return Err("Usage is sic_assembler <filename>"),
@@ -156,6 +161,7 @@ fn is_symbol_line(buffer: &str, counter: &mut i32) -> bool {
     false
 }
 
+// returns the address increment
 fn get_address_increment(directive: &String, operand: &String) -> i32 {
     let address_increment;
     match directive.as_str() {
@@ -180,4 +186,17 @@ fn get_address_increment(directive: &String, operand: &String) -> i32 {
     }
 
     address_increment
+}
+
+// initializes the opcodes for the SIC machine
+// This WILL be painful to read
+fn initalize_opcodes() {
+    let instructions = vec![
+        "ADD", "AND", "COMP", "DIV", "J", "JEQ", "JGT", "JLT", "JSUB", "LDA", "LDCH", "LDL", "LDX",
+        "MUL", "OR", "RD", "RSUB", "STA", "STCH", "STL", "STSW", "STX", "SUB", "TD", "TIX", "WD",
+    ];
+    let opcodes = vec![
+        "18", "40", "28", "24", "3C", "30", "34", "38", "48", "00", "50", "08", "04", "20", "44",
+        "D8", "4C", "0C", "54", "14", "E8", "10", "1C", "E0", "2C", "DC",
+    ];
 }
