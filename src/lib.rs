@@ -3,9 +3,11 @@
 
 #![allow(unused, dead_code)]
 mod data_records;
+mod instructions;
 mod symbols;
 
 use data_records::ObjectData;
+use instructions::Instruction;
 use std::{
     collections::HashMap,
     env,
@@ -170,6 +172,8 @@ pub fn run(config: Config) -> Result<(), &'static str> {
                         Some(broken_line[2].to_string()),
                     );
 
+                    // Need to write textRecords here
+
                     let increment =
                         get_address_increment(line.directive().unwrap(), line.operand().unwrap());
 
@@ -192,6 +196,8 @@ pub fn run(config: Config) -> Result<(), &'static str> {
 
             let increment =
                 get_address_increment(line.directive().unwrap(), line.operand().unwrap());
+
+            // write text records
         }
     }
 
@@ -207,6 +213,33 @@ fn is_memory_out_of_bounds(current_counter: &i32) -> bool {
     false
 }
 
+// Creates text records
+// arguments: records holder, symbol table,
+// opcodes, directive for the line, operand for the line
+// length of the record, starting address, and text index
+// Some of these may be unnecessary with Rust
+fn write_text_record(
+    records: &data_records::ObjectData,
+    symtable: &Vec<String>,
+    opcodes: HashMap<&str, &str>,
+    directive: &str,
+    operand: &str,
+    length: u8,
+    text_index: u8,
+) {
+    // need to locate the symbol in the symbol table
+    // as well as the instruction
+    let symbol = find_symbol(symtable, operand);
+}
+
+fn find_symbol(symtable: &Vec<String>, operand: &str) -> Option<Symbol> {
+    let mut result: Option<Symbol> = None;
+
+    let foundSymbol = symtable.iter().position(|&r| r == operand).unwrap();
+
+    result
+}
+fn find_instruction(opcodes: HashMap<&str, &str>, directive: &str, operand: &str) -> Instruction {}
 // Checks if line has a symbol
 // returns an i32 as follows:
 // 0: Symbol Line
@@ -265,6 +298,8 @@ fn initalize_opcodes(opcodes_lists: &mut HashMap<&str, &str>) {
         "D8", "4C", "0C", "54", "14", "E8", "10", "1C", "E0", "2C", "DC",
     ];
 
+    // because instructions and opcodes are both the same length,
+    // we just need the length of one for this loop to connect them.
     for index in 0..instructions.len() {
         opcodes_lists.insert(opcodes[index], instructions[index]);
     }
