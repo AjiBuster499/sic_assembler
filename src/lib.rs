@@ -220,7 +220,7 @@ fn is_memory_out_of_bounds(current_counter: &i32) -> bool {
 // Some of these may be unnecessary with Rust
 fn write_text_record(
     records: &data_records::ObjectData,
-    symtable: &Vec<String>,
+    symtable: &Vec<Symbol>,
     opcodes: HashMap<&str, &str>,
     directive: &str,
     operand: &str,
@@ -229,17 +229,25 @@ fn write_text_record(
 ) {
     // need to locate the symbol in the symbol table
     // as well as the instruction
-    let symbol = find_symbol(symtable, operand);
+    let symbol = find_symbol(symtable, operand).unwrap();
+    let opcode = find_instruction(opcodes, directive, operand);
 }
 
-fn find_symbol(symtable: &Vec<String>, operand: &str) -> Option<Symbol> {
-    let mut result: Option<Symbol> = None;
+fn find_symbol(symtable: &Vec<Symbol>, operand: &str) -> Option<Symbol> {
+    let foundSymbol = symtable.iter().position(|r| r.name() == operand);
 
-    let foundSymbol = symtable.iter().position(|&r| r == operand).unwrap();
+    // TODO: Return an Option<Symbol>, not Option<&Symbol>
+    if let Some(index) = foundSymbol {}
 
-    result
+    None
 }
-fn find_instruction(opcodes: HashMap<&str, &str>, directive: &str, operand: &str) -> Instruction {}
+fn find_instruction(
+    opcodes: HashMap<&str, &str>,
+    directive: &str,
+    operand: &str,
+) -> Option<Instruction> {
+    None
+}
 // Checks if line has a symbol
 // returns an i32 as follows:
 // 0: Symbol Line
