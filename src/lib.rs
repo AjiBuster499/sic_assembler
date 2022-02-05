@@ -86,18 +86,20 @@ pub fn run(config: Config) -> Result<(), &'static str> {
     let mut buffer = String::new();
 
     // Key is instruction, value is opcode
-    let mut opcodes_lists: HashMap<&str, &str> = HashMap::new();
+    let mut opcodes_list: Vec<Instruction> = vec![];
 
-    initalize_opcodes(&mut opcodes_lists);
+    initalize_opcodes(&mut opcodes_list);
 
-    for (k, v) in opcodes_lists {
-        println!("Instruction: {:}, Opcode: {:}", k, v);
+    for inst in opcodes_list.into_iter() {
+        println!("Name: {:}, Opcode: {:}", inst.name(), inst.opcode());
     }
+
     // main loop
     'pass1: loop {
         buffer.clear();
         // read a line
         if let Ok(line) = reader.read_line(&mut buffer) {
+            println!("{:}", &buffer);
             // EOF Encountered
             if line == 0 {
                 break 'pass1; // exit out of 'pass1 loop
@@ -109,7 +111,7 @@ pub fn run(config: Config) -> Result<(), &'static str> {
             }
 
             // check for symbol line
-            if is_symbol_line(&buffer, &mut address_counter) != 1 {
+            if is_symbol_line(&buffer, &mut address_counter) != 0 {
                 // not a symbol line
                 continue 'pass1;
             }
@@ -142,6 +144,10 @@ pub fn run(config: Config) -> Result<(), &'static str> {
 
             address_counter += address_increment;
         }
+
+        //for symbol in &symbol_table {
+        //    println!("Symbol: {:}, Address: {:}", symbol.name(), symbol.address());
+        //}
     }
 
     // pass 2 loop: Creating the records
@@ -168,8 +174,8 @@ pub fn run(config: Config) -> Result<(), &'static str> {
                     let broken_line: Vec<&str> = buffer.split_ascii_whitespace().collect();
                     let line = AssemblyLine::new(
                         None,
+                        Some(broken_line[0].to_string()),
                         Some(broken_line[1].to_string()),
-                        Some(broken_line[2].to_string()),
                     );
 
                     // Need to write textRecords here
@@ -221,7 +227,7 @@ fn is_memory_out_of_bounds(current_counter: &i32) -> bool {
 fn write_text_record(
     records: &data_records::ObjectData,
     symtable: &Vec<Symbol>,
-    opcodes: HashMap<&str, &str>,
+    opcodes: &Vec<Instruction>,
     directive: &str,
     operand: &str,
     length: u8,
@@ -243,7 +249,7 @@ fn find_symbol<'a>(symtable: &'a Vec<Symbol>, operand: &str) -> Option<&'a Symbo
     None
 }
 fn find_instruction(
-    opcodes: HashMap<&str, &str>,
+    opcodes: &Vec<Instruction>,
     directive: &str,
     operand: &str,
 ) -> Option<Instruction> {
@@ -259,7 +265,7 @@ fn is_symbol_line(buffer: &str, counter: &mut i32) -> i32 {
         *counter += 3;
         return 1;
     } else if buffer.starts_with('#') {
-        // do nothing
+        // do nothin
     } else {
         // symbol line
         return 0;
@@ -297,7 +303,7 @@ fn get_address_increment(directive: &String, operand: &String) -> i32 {
 
 // initializes the opcodes for the SIC machine
 // This WILL be painful to read
-fn initalize_opcodes(opcodes_lists: &mut HashMap<&str, &str>) {
+fn initalize_opcodes(opcodes_list: &mut Vec<Instruction>) {
     let instructions = vec![
         "ADD", "AND", "COMP", "DIV", "J", "JEQ", "JGT", "JLT", "JSUB", "LDA", "LDCH", "LDL", "LDX",
         "MUL", "OR", "RD", "RSUB", "STA", "STCH", "STL", "STSW", "STX", "SUB", "TD", "TIX", "WD",
@@ -309,7 +315,10 @@ fn initalize_opcodes(opcodes_lists: &mut HashMap<&str, &str>) {
 
     // because instructions and opcodes are both the same length,
     // we just need the length of one for this loop to connect them.
-    for index in 0..instructions.len() {
-        opcodes_lists.insert(opcodes[index], instructions[index]);
+    for i in 0..instructions.len() {
+        opcodes_list.push(Instruction::new(
+            instructions[i].to_string(),
+            i32::from_str_radix(opcodes[i], 16).ok().unwrap(),
+        ));
     }
 }
