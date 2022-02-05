@@ -233,11 +233,12 @@ fn write_text_record(
     let opcode = find_instruction(opcodes, directive, operand);
 }
 
-fn find_symbol(symtable: &Vec<Symbol>, operand: &str) -> Option<Symbol> {
-    let foundSymbol = symtable.iter().position(|r| r.name() == operand);
+fn find_symbol<'a>(symtable: &'a Vec<Symbol>, operand: &str) -> Option<&'a Symbol> {
+    let found_symbol = symtable.iter().position(|r| r.name() == operand);
 
-    // TODO: Return an Option<Symbol>, not Option<&Symbol>
-    if let Some(index) = foundSymbol {}
+    if let Some(index) = found_symbol {
+        return symtable.get(index);
+    }
 
     None
 }
