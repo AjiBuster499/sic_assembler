@@ -3,10 +3,12 @@
 
 #![allow(unused, dead_code)]
 mod data_records;
+mod directives;
 mod instructions;
 mod symbols;
 
 use data_records::ObjectData;
+use directives::is_directive;
 use instructions::Instruction;
 use std::{
     collections::HashMap,
@@ -238,7 +240,28 @@ fn find_instruction(
     directive: &str,
     operand: &str,
 ) -> Option<Instruction> {
-    None
+    let mut result = None;
+    if is_directive(directive) {
+        match directive {
+            "RESB" | "RESW" => {
+                // do nothing
+            }
+            "WORD" => {
+                result = Some(Instruction::new(
+                    directive,
+                    i32::from_str_radix(operand, 10),
+                ));
+            }
+            "BYTE" => {
+                result = Some(Instruction::new(
+                    directive,
+                    i32::from_str_radix(operand, 16),
+                ));
+            }
+            _ => {}
+        }
+    }
+    result
 }
 // Checks if line has a symbol
 // returns an i32 as follows:

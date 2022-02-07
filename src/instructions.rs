@@ -1,10 +1,10 @@
-pub struct Instruction {
-    name: String,
+pub struct Instruction<'a> {
+    name: &'a str,
     opcode: i32,
 }
 
-impl Instruction {
-    pub fn new(name: String, opcode: i32) -> Self {
+impl<'a> Instruction<'a> {
+    pub fn new(name: &'a str, opcode: i32) -> Self {
         Instruction { name, opcode }
     }
 
