@@ -42,14 +42,14 @@ impl Config {
     }
 }
 
-pub struct AssemblyLine {
-    symbol: Option<String>,
-    directive: Option<String>,
-    operand: Option<String>,
+pub struct AssemblyLine<'a> {
+    symbol: Option<&'a str>,
+    directive: Option<&'a str>,
+    operand: Option<&'a str>,
 }
 
-impl AssemblyLine {
-    pub fn new(sym: Option<String>, dir: Option<String>, op: Option<String>) -> Self {
+impl<'a> AssemblyLine<'a> {
+    pub fn new(sym: Option<&'a str>, dir: Option<&'a str>, op: Option<&'a str>) -> Self {
         AssemblyLine {
             symbol: sym,
             directive: dir,
@@ -57,16 +57,16 @@ impl AssemblyLine {
         }
     }
 
-    pub fn symbol(&self) -> Option<&String> {
-        self.symbol.as_ref()
+    pub fn symbol(&self) -> Option<&str> {
+        self.symbol
     }
 
-    pub fn directive(&self) -> Option<&String> {
-        self.directive.as_ref()
+    pub fn directive(&self) -> Option<&str> {
+        self.directive
     }
 
-    pub fn operand(&self) -> Option<&String> {
-        self.operand.as_ref()
+    pub fn operand(&self) -> Option<&str> {
+        self.operand
     }
 }
 
@@ -90,16 +90,12 @@ pub fn run(config: Config) -> Result<(), &'static str> {
 
     initalize_opcodes(&mut opcodes_list);
 
-    for inst in opcodes_list.into_iter() {
-        println!("Name: {:}, Opcode: {:}", inst.name(), inst.opcode());
-    }
-
     // main loop
     'pass1: loop {
         buffer.clear();
         // read a line
         if let Ok(line) = reader.read_line(&mut buffer) {
-            println!("{:}", &buffer);
+            print!("{:}", &buffer);
             // EOF Encountered
             if line == 0 {
                 break 'pass1; // exit out of 'pass1 loop
@@ -117,12 +113,9 @@ pub fn run(config: Config) -> Result<(), &'static str> {
             }
 
             // add the symbol to the symbol table
-            let broken_line: Vec<&str> = buffer.split_ascii_whitespace().collect();
-            let line = AssemblyLine::new(
-                Some(broken_line[0].to_string()),
-                Some(broken_line[1].to_string()),
-                Some(broken_line[2].to_string()),
-            );
+            let mut broken_line = buffer.split_ascii_whitespace();
+            let line =
+                AssemblyLine::new(broken_line.next(), broken_line.next(), broken_line.next());
 
             // START directive, aka first line.
             // This means that we have to set the address and move on.
@@ -140,7 +133,7 @@ pub fn run(config: Config) -> Result<(), &'static str> {
 
             // Call function to determine address increment here
             let address_increment =
-                get_address_increment(line.directive().unwrap(), line.operand().unwrap());
+                get_address_increment(line.directive().unwrap(), line.operand());
 
             address_counter += address_increment;
         }
@@ -171,17 +164,13 @@ pub fn run(config: Config) -> Result<(), &'static str> {
                 1 => {
                     // non-symbol assembly line
                     // tokenize the line
-                    let broken_line: Vec<&str> = buffer.split_ascii_whitespace().collect();
-                    let line = AssemblyLine::new(
-                        None,
-                        Some(broken_line[0].to_string()),
-                        Some(broken_line[1].to_string()),
-                    );
+                    let mut broken_line = buffer.split_ascii_whitespace();
+                    let line = AssemblyLine::new(None, broken_line.next(), broken_line.next());
 
                     // Need to write textRecords here
 
                     let increment =
-                        get_address_increment(line.directive().unwrap(), line.operand().unwrap());
+                        get_address_increment(line.directive().unwrap(), line.operand());
 
                     address_counter += increment;
                     continue 'pass2;
@@ -193,15 +182,11 @@ pub fn run(config: Config) -> Result<(), &'static str> {
             }
 
             // tokenize the line containing a symbol
-            let broken_line: Vec<&str> = buffer.split_ascii_whitespace().collect();
-            let line = AssemblyLine::new(
-                Some(broken_line[0].to_string()),
-                Some(broken_line[1].to_string()),
-                Some(broken_line[2].to_string()),
-            );
+            let mut broken_line = buffer.split_ascii_whitespace();
+            let line =
+                AssemblyLine::new(broken_line.next(), broken_line.next(), broken_line.next());
 
-            let increment =
-                get_address_increment(line.directive().unwrap(), line.operand().unwrap());
+            let increment = get_address_increment(line.directive().unwrap(), line.operand());
 
             // write text records
         }
@@ -275,26 +260,26 @@ fn is_symbol_line(buffer: &str, counter: &mut i32) -> i32 {
 }
 
 // returns the address increment
-fn get_address_increment(directive: &String, operand: &String) -> i32 {
-    let address_increment;
-    match directive.as_str() {
-        "RESB" => {
-            address_increment = operand.parse::<i32>().unwrap();
-        }
-        "RESW" => {
-            address_increment = (operand.parse::<i32>().unwrap()) * 3;
-        }
-        "BYTE" if operand.starts_with('C') => {
-            let len = operand.len() - 4;
-            address_increment = len as i32;
-        }
-        "BYTE" if operand.starts_with('X') => {
-            let len = operand.len() - 4;
-            address_increment = len as i32 / 2;
-        }
-        "END" => address_increment = 0,
-        _ => {
-            address_increment = 3;
+fn get_address_increment(directive: &str, operand: Option<&str>) -> i32 {
+    let mut address_increment = 3;
+    if let Some(op) = operand {
+        match directive {
+            "RESB" => {
+                address_increment = op.parse::<i32>().unwrap();
+            }
+            "RESW" => {
+                address_increment = (op.parse::<i32>().unwrap()) * 3;
+            }
+            "BYTE" if op.starts_with('C') => {
+                let len = op.len() - 4;
+                address_increment = len as i32;
+            }
+            "BYTE" if op.starts_with('X') => {
+                let len = op.len() - 4;
+                address_increment = len as i32 / 2;
+            }
+            "END" => address_increment = 0,
+            _ => {}
         }
     }
 
@@ -314,7 +299,7 @@ fn initalize_opcodes(opcodes_list: &mut Vec<Instruction>) {
     ];
 
     // because instructions and opcodes are both the same length,
-    // we just need the length of one for this loop to connect them.
+    // we just need the length of one for this loop to connect them
     for i in 0..instructions.len() {
         opcodes_list.push(Instruction::new(
             instructions[i].to_string(),
