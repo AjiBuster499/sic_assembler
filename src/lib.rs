@@ -7,6 +7,7 @@ mod directives;
 mod instructions;
 mod symbols;
 
+use ascii_to_hex::ascii_to_hex;
 use data_records::ObjectData;
 use directives::is_directive;
 use instructions::Instruction;
@@ -97,7 +98,6 @@ pub fn run(config: Config) -> Result<(), &'static str> {
         buffer.clear();
         // read a line
         if let Ok(line) = reader.read_line(&mut buffer) {
-            print!("{:}", &buffer);
             // EOF Encountered
             if line == 0 {
                 break 'pass1; // exit out of 'pass1 loop
@@ -158,6 +158,7 @@ pub fn run(config: Config) -> Result<(), &'static str> {
             if line == 0 {
                 break 'pass2;
             }
+            print!("{:}", &buffer);
 
             match is_symbol_line(&buffer, &mut address_counter) {
                 0 => { // symbol line
@@ -170,6 +171,12 @@ pub fn run(config: Config) -> Result<(), &'static str> {
                     let line = AssemblyLine::new(None, broken_line.next(), broken_line.next());
 
                     // Need to write textRecords here
+                    write_text_record(
+                        &symbol_table,
+                        &opcodes_list,
+                        line.directive().unwrap(),
+                        line.operand(),
+                    );
 
                     let increment =
                         get_address_increment(line.directive().unwrap(), line.operand());
@@ -191,6 +198,12 @@ pub fn run(config: Config) -> Result<(), &'static str> {
             let increment = get_address_increment(line.directive().unwrap(), line.operand());
 
             // write text records
+            write_text_record(
+                &symbol_table,
+                &opcodes_list,
+                line.directive().unwrap(),
+                line.operand(),
+            );
         }
     }
 
@@ -215,49 +228,51 @@ fn write_text_record(
     symtable: &Vec<Symbol>,
     opcodes: &Vec<Instruction>,
     directive: &str,
-    operand: &str,
-    length: &i32,
+    operand: Option<&str>,
 ) -> String {
     // this function wil return text_data
-    let mut local_length = *length; // take a local copy of length
+    let mut local_length = 3; // take a local copy of length
     let mut text_data: String = String::new();
     let mut symbol_address = 0;
-    // need to locate the symbol in the symbol table
-    // as well as the instruction
-    let symbol = find_symbol(symtable, operand);
-    let opcode = find_instruction(opcodes, directive, operand);
 
-    // If we didn't find the symbol, we need to error
-    if let Some(symbol) = symbol {
-        // we found the symbol
-        // need to set the symbol address
-        symbol_address = *symbol.address();
-    }
+    // The operand does not exit only when the directive is RSUB
+    if let Some(operand) = operand {
+        // need to locate the symbol in the symbol table
+        // as well as the instruction
+        let symbol = find_symbol(symtable, operand);
+        let opcode = find_instruction(opcodes, directive, operand);
 
-    if let Some(opcode) = opcode {
-        if !is_directive(directive) {
-            // instruction, so the object code is OP and ADDR
-            text_data = format!("{:#02X}{:#04X}", opcode.opcode(), symbol_address);
-        } else {
-            // It's just a directive
-            // BYTE directives can exceed the 60 character object code limit
-            // Please look forward to it (tm)
-            if operand.len() > 60 {
-                todo!(); // please do look forward to it (tm)
+        // If we didn't find the symbol, we need to error
+        if let Some(symbol) = symbol {
+            // we found the symbol
+            // need to set the symbol address
+            symbol_address = *symbol.address();
+        }
+
+        if let Some(opcode) = opcode {
+            if !is_directive(directive) {
+                // instruction, so the object code is OP and ADDR
+                text_data = format!("{:#02X}{:#04X}", opcode.opcode(), symbol_address);
             } else {
-                if opcode.name() == "WORD" {
-                    // word format is %06X (using format from C code as template
-                    text_data = format!("{:#06X}", opcode.opcode());
+                // It's just a directive
+                // BYTE directives can exceed the 60 character object code limit
+                // Please look forward to it (tm)
+                if operand.len() > 60 {
+                    todo!(); // please do look forward to it (tm)
                 } else {
-                    // This was uncommented in C Code
-                    // Dangit past me
-                    text_data = format!("{}", operand);
-                    local_length /= 2;
+                    if opcode.name() == "WORD" {
+                        // word format is %06X
+                        text_data = format!("{:#06X}", opcode.opcode());
+                    } else {
+                        // This was uncommented in C Code
+                        // Dangit past me
+                        text_data = format!("{}", operand);
+                        local_length /= 2;
+                    }
                 }
             }
         }
     }
-
     format!("T{}\n", text_data)
 }
 
@@ -279,6 +294,7 @@ fn find_instruction<'a>(
     if is_directive(directive) {
         match directive {
             "RESB" | "RESW" => {
+                // This can be removed in favor of the wildcard
                 // do nothing
             }
             "WORD" => {
@@ -287,10 +303,27 @@ fn find_instruction<'a>(
                     i32::from_str_radix(operand, 10).unwrap(),
                 ));
             }
-            "BYTE" => {
+            "BYTE" if operand.starts_with('X') => {
+                let len = operand.len() - 1;
+                let clean_operand = &operand[2..len];
+                println!("{:?}", clean_operand);
                 result = Some(Instruction::new(
                     directive,
-                    i32::from_str_radix(operand, 16).unwrap(),
+                    i32::from_str_radix(clean_operand, 16).unwrap(),
+                ));
+            }
+            // Unsure if this will work
+            // since Rust uses UTF-8
+            // instead of ASCII
+            "BYTE" if operand.starts_with('C') => {
+                // Remove the stuff unneeded from the operand
+                let len = operand.len() - 1;
+                let clean_operand = &operand[2..len];
+                println!("{:?}", clean_operand);
+                result = Some(Instruction::new(
+                    directive,
+                    <i32>::from_str_radix(ascii_to_hex::get_hex_string(clean_operand).as_str(), 16)
+                        .unwrap(),
                 ));
             }
             _ => {}
