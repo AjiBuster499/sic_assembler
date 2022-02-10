@@ -222,8 +222,18 @@ fn write_text_record(
 ) {
     // need to locate the symbol in the symbol table
     // as well as the instruction
-    let symbol = find_symbol(symtable, operand).unwrap();
+    let mut symbol_address = 0;
+    let symbol = find_symbol(symtable, operand);
     let opcode = find_instruction(opcodes, directive, operand);
+
+    // If we didn't find the symbol, we need to error
+    if let Some(symbol) = symbol {
+        // we found the symbol
+        // need to set the symbol address
+        symbol_address = *symbol.address();
+    } else if directive == "RSUB" {
+        //
+    }
 }
 
 fn find_symbol<'a>(symtable: &'a Vec<Symbol>, operand: &str) -> Option<&'a Symbol> {
@@ -235,11 +245,11 @@ fn find_symbol<'a>(symtable: &'a Vec<Symbol>, operand: &str) -> Option<&'a Symbo
 
     None
 }
-fn find_instruction(
+fn find_instruction<'a>(
     opcodes: &Vec<Instruction>,
-    directive: &str,
-    operand: &str,
-) -> Option<Instruction> {
+    directive: &'a str,
+    operand: &'a str,
+) -> Option<Instruction<'a>> {
     let mut result = None;
     if is_directive(directive) {
         match directive {
@@ -249,13 +259,13 @@ fn find_instruction(
             "WORD" => {
                 result = Some(Instruction::new(
                     directive,
-                    i32::from_str_radix(operand, 10),
+                    i32::from_str_radix(operand, 10).unwrap(),
                 ));
             }
             "BYTE" => {
                 result = Some(Instruction::new(
                     directive,
-                    i32::from_str_radix(operand, 16),
+                    i32::from_str_radix(operand, 16).unwrap(),
                 ));
             }
             _ => {}
@@ -263,6 +273,7 @@ fn find_instruction(
     }
     result
 }
+
 // Checks if line has a symbol
 // returns an i32 as follows:
 // 0: Symbol Line
@@ -273,7 +284,7 @@ fn is_symbol_line(buffer: &str, counter: &mut i32) -> i32 {
         *counter += 3;
         return 1;
     } else if buffer.starts_with('#') {
-        // do nothin
+        // do nothing
     } else {
         // symbol line
         return 0;
@@ -325,7 +336,7 @@ fn initalize_opcodes(opcodes_list: &mut Vec<Instruction>) {
     // we just need the length of one for this loop to connect them
     for i in 0..instructions.len() {
         opcodes_list.push(Instruction::new(
-            instructions[i].to_string(),
+            instructions[i],
             i32::from_str_radix(opcodes[i], 16).ok().unwrap(),
         ));
     }
