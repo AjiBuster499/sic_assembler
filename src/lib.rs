@@ -212,17 +212,18 @@ fn is_memory_out_of_bounds(current_counter: &i32) -> bool {
 // length of the record, starting address, and text index
 // Some of these may be unnecessary with Rust
 fn write_text_record(
-    records: &data_records::ObjectData,
     symtable: &Vec<Symbol>,
     opcodes: &Vec<Instruction>,
     directive: &str,
     operand: &str,
-    length: u8,
-    text_index: u8,
-) {
+    length: &i32,
+) -> String {
+    // this function wil return text_data
+    let mut local_length = *length; // take a local copy of length
+    let mut text_data: String = String::new();
+    let mut symbol_address = 0;
     // need to locate the symbol in the symbol table
     // as well as the instruction
-    let mut symbol_address = 0;
     let symbol = find_symbol(symtable, operand);
     let opcode = find_instruction(opcodes, directive, operand);
 
@@ -231,9 +232,33 @@ fn write_text_record(
         // we found the symbol
         // need to set the symbol address
         symbol_address = *symbol.address();
-    } else if directive == "RSUB" {
-        //
     }
+
+    if let Some(opcode) = opcode {
+        if !is_directive(directive) {
+            // instruction, so the object code is OP and ADDR
+            text_data = format!("{:#02X}{:#04X}", opcode.opcode(), symbol_address);
+        } else {
+            // It's just a directive
+            // BYTE directives can exceed the 60 character object code limit
+            // Please look forward to it (tm)
+            if operand.len() > 60 {
+                todo!(); // please do look forward to it (tm)
+            } else {
+                if opcode.name() == "WORD" {
+                    // word format is %06X (using format from C code as template
+                    text_data = format!("{:#06X}", opcode.opcode());
+                } else {
+                    // This was uncommented in C Code
+                    // Dangit past me
+                    text_data = format!("{}", operand);
+                    local_length /= 2;
+                }
+            }
+        }
+    }
+
+    format!("T{}\n", text_data)
 }
 
 fn find_symbol<'a>(symtable: &'a Vec<Symbol>, operand: &str) -> Option<&'a Symbol> {
