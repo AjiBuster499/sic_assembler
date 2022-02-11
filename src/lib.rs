@@ -77,6 +77,7 @@ impl<'a> AssemblyLine<'a> {
 pub fn run(config: Config) -> Result<(), &'static str> {
     let mut address_counter: i32 = 0; // address counter for symbols
     let mut symbol_table: Vec<Symbol> = vec![]; // symbol table, initially empty.
+    let data_records: data_records::ObjectData;
 
     let sic_asm_file = File::open(config.filename);
 
@@ -146,9 +147,10 @@ pub fn run(config: Config) -> Result<(), &'static str> {
     }
 
     // pass 2 loop: Creating the records
-    let _starting_address = 0; // preserve the old starting address
-    let mut _length = 3; // default length of object code
+    let mut starting_address = 0; // preserve the old starting address
+    let mut length = 3; // default length of object code
     let _text_index = 0; // used for text records (maybe unneeded with Rust)
+    let mut head: String;
 
     reader.rewind().unwrap(); // reset the reader
 
@@ -170,8 +172,10 @@ pub fn run(config: Config) -> Result<(), &'static str> {
                     let mut broken_line = buffer.split_ascii_whitespace();
                     let line = AssemblyLine::new(None, broken_line.next(), broken_line.next());
 
+                    // function to consolidate records
+                    // create_records_object(head, end, text, mod);
                     // Need to write textRecords here
-                    write_text_record(
+                    let text = write_text_record(
                         &symbol_table,
                         &opcodes_list,
                         line.directive().unwrap(),
@@ -197,8 +201,26 @@ pub fn run(config: Config) -> Result<(), &'static str> {
 
             let increment = get_address_increment(line.directive().unwrap(), line.operand());
 
+            if line.directive().unwrap() == "START" {
+                starting_address = i32::from_str_radix(
+                    line.operand()
+                        .expect("ERROR: Starting address not included"),
+                    16,
+                )
+                .unwrap();
+                let end_address = address_counter - starting_address;
+                head = write_head_record(
+                    line.symbol().expect("ERROR: No START symbol"),
+                    end_address,
+                    starting_address,
+                );
+            } else if line.directive().unwrap() == "END" {
+            }
+
+            // function to consolidate records
+            // create_records_object(head, end, text, mod);
             // write text records
-            write_text_record(
+            let text = write_text_record(
                 &symbol_table,
                 &opcodes_list,
                 line.directive().unwrap(),
@@ -276,6 +298,14 @@ fn write_text_record(
     format!("T{}\n", text_data)
 }
 
+fn write_head_record(start_symbol: &str, start_address: i32, length: i32) -> String {
+    format!("H{:}{:#06X}{:#06X}\n", start_symbol, start_address, length)
+}
+
+fn write_end_record(start_address: i32) -> String {
+    format!("E{:#06X}\n", start_address)
+}
+
 fn find_symbol<'a>(symtable: &'a Vec<Symbol>, operand: &str) -> Option<&'a Symbol> {
     let found_symbol = symtable.iter().position(|r| r.name() == operand);
 
@@ -306,20 +336,15 @@ fn find_instruction<'a>(
             "BYTE" if operand.starts_with('X') => {
                 let len = operand.len() - 1;
                 let clean_operand = &operand[2..len];
-                println!("{:?}", clean_operand);
                 result = Some(Instruction::new(
                     directive,
                     i32::from_str_radix(clean_operand, 16).unwrap(),
                 ));
             }
-            // Unsure if this will work
-            // since Rust uses UTF-8
-            // instead of ASCII
             "BYTE" if operand.starts_with('C') => {
                 // Remove the stuff unneeded from the operand
                 let len = operand.len() - 1;
                 let clean_operand = &operand[2..len];
-                println!("{:?}", clean_operand);
                 result = Some(Instruction::new(
                     directive,
                     <i32>::from_str_radix(ascii_to_hex::get_hex_string(clean_operand).as_str(), 16)
