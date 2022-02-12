@@ -3,6 +3,7 @@
 
 /* Big list of TODO
 * Error Handling in other places
+* * Maybe propagate it up to main.rs?
 */
 
 mod data_records;
@@ -11,6 +12,7 @@ mod instructions;
 mod symbols;
 
 use ascii_to_hex::ascii_to_hex;
+use data_records::ObjectData;
 use directives::is_directive;
 use instructions::Instruction;
 use std::{
@@ -21,6 +23,7 @@ use std::{
 use symbols::Symbol;
 
 const MAX_MEMORY: i32 = 0x7FFF;
+
 // Holds inputted args (for now, just filename)
 // maybe future uses can include flags
 pub struct Config {
@@ -298,12 +301,30 @@ fn write_text_record(symtable: &Vec<Symbol>, directive: &str, operand: Option<&s
     format!("T{}\n", text_data)
 }
 
+// writes head record
 fn write_head_record(start_symbol: &str, start_address: i32, length: i32) -> String {
     format!("H{:}{:#06X}{:#06X}\n", start_symbol, start_address, length)
 }
 
+// Writes end record
 fn write_end_record(start_address: i32) -> String {
     format!("E{:#06X}\n", start_address)
+}
+
+/*
+* Writes the modification records
+* If I recall correctly, modification records
+* happen on every instruction that isn't RSUB.
+* At least, that's what I can gather from my
+* poorly commented C code.
+* I forget the reasoning why, but there's two mod record functions
+* I may be able to condense them down with Rust powers.
+*/
+// This takes a collection of records, and fills them out
+fn add_mod_record(starting_address: i32, mod_length: i32, symbol: String, data_index: i32) {}
+
+fn write_mod_record(obj_data: ObjectData, /*data_records: data_records,?? */ data_index: i32) {
+    //format!("M{:#06X}{:#02X}+{:}\n");
 }
 
 fn find_symbol<'a>(symtable: &'a Vec<Symbol>, operand: &str) -> Option<&'a Symbol> {
