@@ -1,5 +1,5 @@
 // Data Record structs and methods
-
+#[allow(dead_code)]
 #[derive(Default, Debug)]
 pub struct ObjectData<'a> {
     head_record: &'a str,

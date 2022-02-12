@@ -1,22 +1,22 @@
 /* Logic for the Rusty SIC Assembler
 */
 
-#![allow(unused, dead_code)]
+/* Big list of TODO
+* Error Handling in other places
+*/
+
 mod data_records;
 mod directives;
 mod instructions;
 mod symbols;
 
 use ascii_to_hex::ascii_to_hex;
-use data_records::ObjectData;
 use directives::is_directive;
 use instructions::Instruction;
 use std::{
-    collections::HashMap,
     env,
     fs::File,
     io::{BufRead, BufReader, Seek},
-    vec,
 };
 use symbols::Symbol;
 
@@ -77,7 +77,7 @@ impl<'a> AssemblyLine<'a> {
 pub fn run(config: Config) -> Result<(), &'static str> {
     let mut address_counter: i32 = 0; // address counter for symbols
     let mut symbol_table: Vec<Symbol> = vec![]; // symbol table, initially empty.
-    let data_records: data_records::ObjectData;
+    let _data_records: data_records::ObjectData;
 
     let sic_asm_file = File::open(config.filename);
 
@@ -147,10 +147,10 @@ pub fn run(config: Config) -> Result<(), &'static str> {
     }
 
     // pass 2 loop: Creating the records
-    let mut starting_address = 0; // preserve the old starting address
-    let mut length = 3; // default length of object code
-    let _text_index = 0; // used for text records (maybe unneeded with Rust)
-    let mut head: String;
+    let mut starting_address: Option<i32> = None; // preserve the old starting address
+    let _length = 3; // default length of object code
+    let mut _head: String;
+    let mut _end: String;
 
     reader.rewind().unwrap(); // reset the reader
 
@@ -172,15 +172,11 @@ pub fn run(config: Config) -> Result<(), &'static str> {
                     let mut broken_line = buffer.split_ascii_whitespace();
                     let line = AssemblyLine::new(None, broken_line.next(), broken_line.next());
 
+                    // Need to write textRecords here
+                    let _text =
+                        write_text_record(&symbol_table, line.directive().unwrap(), line.operand());
                     // function to consolidate records
                     // create_records_object(head, end, text, mod);
-                    // Need to write textRecords here
-                    let text = write_text_record(
-                        &symbol_table,
-                        &opcodes_list,
-                        line.directive().unwrap(),
-                        line.operand(),
-                    );
 
                     let increment =
                         get_address_increment(line.directive().unwrap(), line.operand());
@@ -201,31 +197,42 @@ pub fn run(config: Config) -> Result<(), &'static str> {
 
             let increment = get_address_increment(line.directive().unwrap(), line.operand());
 
+            address_counter += increment;
+
             if line.directive().unwrap() == "START" {
-                starting_address = i32::from_str_radix(
-                    line.operand()
-                        .expect("ERROR: Starting address not included"),
-                    16,
-                )
-                .unwrap();
-                let end_address = address_counter - starting_address;
-                head = write_head_record(
-                    line.symbol().expect("ERROR: No START symbol"),
-                    end_address,
-                    starting_address,
-                );
+                if let None = starting_address {
+                    starting_address = Some(
+                        i32::from_str_radix(
+                            line.operand()
+                                .expect("ERROR: Starting address not included."),
+                            16,
+                        )
+                        .expect("ERROR: Starting address is not a valid hex number!"),
+                    );
+                    let end_address = address_counter - starting_address.unwrap();
+                    _head = write_head_record(
+                        line.symbol().expect("ERROR: No program name included."),
+                        end_address,
+                        starting_address.unwrap(),
+                    );
+                } else {
+                    return Err("ERROR: Starting address was already defined!\n Maybe you called START twice?");
+                }
             } else if line.directive().unwrap() == "END" {
+                // In theory, END comes after START
+                if let Some(start_address) = starting_address {
+                    _end = write_end_record(start_address);
+                } else {
+                    return Err(
+                        "ERROR: Starting Address not assigned.\n Maybe you didn't use START?",
+                    );
+                }
             }
 
             // function to consolidate records
             // create_records_object(head, end, text, mod);
             // write text records
-            let text = write_text_record(
-                &symbol_table,
-                &opcodes_list,
-                line.directive().unwrap(),
-                line.operand(),
-            );
+            let _text = write_text_record(&symbol_table, line.directive().unwrap(), line.operand());
         }
     }
 
@@ -246,14 +253,8 @@ fn is_memory_out_of_bounds(current_counter: &i32) -> bool {
 // opcodes, directive for the line, operand for the line
 // length of the record, starting address, and text index
 // Some of these may be unnecessary with Rust
-fn write_text_record(
-    symtable: &Vec<Symbol>,
-    opcodes: &Vec<Instruction>,
-    directive: &str,
-    operand: Option<&str>,
-) -> String {
+fn write_text_record(symtable: &Vec<Symbol>, directive: &str, operand: Option<&str>) -> String {
     // this function wil return text_data
-    let mut local_length = 3; // take a local copy of length
     let mut text_data: String = String::new();
     let mut symbol_address = 0;
 
@@ -262,7 +263,7 @@ fn write_text_record(
         // need to locate the symbol in the symbol table
         // as well as the instruction
         let symbol = find_symbol(symtable, operand);
-        let opcode = find_instruction(opcodes, directive, operand);
+        let opcode = find_instruction(directive, operand);
 
         // If we didn't find the symbol, we need to error
         if let Some(symbol) = symbol {
@@ -289,7 +290,6 @@ fn write_text_record(
                         // This was uncommented in C Code
                         // Dangit past me
                         text_data = format!("{}", operand);
-                        local_length /= 2;
                     }
                 }
             }
@@ -315,12 +315,7 @@ fn find_symbol<'a>(symtable: &'a Vec<Symbol>, operand: &str) -> Option<&'a Symbo
 
     None
 }
-fn find_instruction<'a>(
-    opcodes: &Vec<Instruction>,
-    directive: &'a str,
-    operand: &'a str,
-) -> Option<Instruction<'a>> {
-    let mut result = None;
+fn find_instruction<'a>(directive: &'a str, operand: &'a str) -> Option<Instruction<'a>> {
     if is_directive(directive) {
         match directive {
             "RESB" | "RESW" => {
@@ -328,7 +323,7 @@ fn find_instruction<'a>(
                 // do nothing
             }
             "WORD" => {
-                result = Some(Instruction::new(
+                return Some(Instruction::new(
                     directive,
                     i32::from_str_radix(operand, 10).unwrap(),
                 ));
@@ -336,7 +331,7 @@ fn find_instruction<'a>(
             "BYTE" if operand.starts_with('X') => {
                 let len = operand.len() - 1;
                 let clean_operand = &operand[2..len];
-                result = Some(Instruction::new(
+                return Some(Instruction::new(
                     directive,
                     i32::from_str_radix(clean_operand, 16).unwrap(),
                 ));
@@ -345,7 +340,7 @@ fn find_instruction<'a>(
                 // Remove the stuff unneeded from the operand
                 let len = operand.len() - 1;
                 let clean_operand = &operand[2..len];
-                result = Some(Instruction::new(
+                return Some(Instruction::new(
                     directive,
                     <i32>::from_str_radix(ascii_to_hex::get_hex_string(clean_operand).as_str(), 16)
                         .unwrap(),
@@ -354,7 +349,7 @@ fn find_instruction<'a>(
             _ => {}
         }
     }
-    result
+    None
 }
 
 // Checks if line has a symbol
