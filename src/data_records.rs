@@ -23,3 +23,19 @@ impl<'a> ObjectData<'a> {
         }
     }
 }
+
+pub struct ModRecordData {
+    starting_address: i32,
+    mod_length: i32,
+    symbol: String,
+}
+
+impl ModRecordData {
+    pub fn new(starting_address: i32, mod_length: i32, symbol: String) -> Self {
+        Self {
+            starting_address,
+            mod_length,
+            symbol,
+        }
+    }
+}

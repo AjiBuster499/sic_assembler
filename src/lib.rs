@@ -11,8 +11,8 @@ mod directives;
 mod instructions;
 mod symbols;
 
+use crate::data_records::ModRecordData;
 use ascii_to_hex::ascii_to_hex;
-use data_records::ObjectData;
 use directives::is_directive;
 use instructions::Instruction;
 use std::{
@@ -80,7 +80,6 @@ impl<'a> AssemblyLine<'a> {
 pub fn run(config: Config) -> Result<(), &'static str> {
     let mut address_counter: i32 = 0; // address counter for symbols
     let mut symbol_table: Vec<Symbol> = vec![]; // symbol table, initially empty.
-    let _data_records: data_records::ObjectData;
 
     let sic_asm_file = File::open(config.filename);
 
@@ -143,27 +142,28 @@ pub fn run(config: Config) -> Result<(), &'static str> {
 
             address_counter += address_increment;
         }
-
-        //for symbol in &symbol_table {
-        //    println!("Symbol: {:}, Address: {:}", symbol.name(), symbol.address());
-        //}
     }
 
     // pass 2 loop: Creating the records
     let mut starting_address: Option<i32> = None; // preserve the old starting address
     let _length = 3; // default length of object code
-    let mut _head: String;
-    let mut _end: String;
+    let mut _object_data: data_records::ObjectData;
+    let mut _head: String; // head record
+    let mut _end: String; // end record
+    let mut _text: String;
+    let mut mod_records: Vec<ModRecordData> = vec![];
 
     reader.rewind().unwrap(); // reset the reader
 
     'pass2: loop {
+        // empty out the buffer
         buffer.clear();
         if let Ok(line) = reader.read_line(&mut buffer) {
             if line == 0 {
+                // hit EOF
                 break 'pass2;
             }
-            print!("{:}", &buffer);
+            print!("{:}", &buffer); // dev purposes
 
             match is_symbol_line(&buffer, &mut address_counter) {
                 0 => { // symbol line
@@ -176,11 +176,21 @@ pub fn run(config: Config) -> Result<(), &'static str> {
                     let line = AssemblyLine::new(None, broken_line.next(), broken_line.next());
 
                     // Need to write textRecords here
-                    let _text =
+                    _text =
                         write_text_record(&symbol_table, line.directive().unwrap(), line.operand());
                     // function to consolidate records
                     // create_records_object(head, end, text, mod);
 
+                    if !is_directive(line.directive().unwrap())
+                        && line.directive().unwrap() != "RSUB"
+                    {
+                        add_mod_record(
+                            &mut mod_records,
+                            &starting_address.unwrap(),
+                            &4,
+                            line.symbol().unwrap(),
+                        );
+                    }
                     let increment =
                         get_address_increment(line.directive().unwrap(), line.operand());
 
@@ -202,9 +212,13 @@ pub fn run(config: Config) -> Result<(), &'static str> {
 
             address_counter += increment;
 
+            // START and END handling
             if line.directive().unwrap() == "START" {
+                // starting_address has not been set yet, meaning
+                // this is the first (and only valid) call of START
                 if let None = starting_address {
                     starting_address = Some(
+                        // Set starting_address
                         i32::from_str_radix(
                             line.operand()
                                 .expect("ERROR: Starting address not included."),
@@ -212,30 +226,36 @@ pub fn run(config: Config) -> Result<(), &'static str> {
                         )
                         .expect("ERROR: Starting address is not a valid hex number!"),
                     );
+                    // Define an ending address
                     let end_address = address_counter - starting_address.unwrap();
+                    // write the head record
                     _head = write_head_record(
                         line.symbol().expect("ERROR: No program name included."),
-                        end_address,
+                        &end_address,
                         starting_address.unwrap(),
                     );
                 } else {
+                    // starting address has been defined already, which means START has been called
+                    // twice!
                     return Err("ERROR: Starting address was already defined!\n Maybe you called START twice?");
                 }
+            // The first (and only valid call) of END
             } else if line.directive().unwrap() == "END" {
                 // In theory, END comes after START
                 if let Some(start_address) = starting_address {
-                    _end = write_end_record(start_address);
+                    _end = write_end_record(&start_address);
                 } else {
                     return Err(
+                        // but sometimes humans err, and that's why we handle such cases
                         "ERROR: Starting Address not assigned.\n Maybe you didn't use START?",
                     );
                 }
             }
 
+            // write text records
+            _text = write_text_record(&symbol_table, line.directive().unwrap(), line.operand());
             // function to consolidate records
             // create_records_object(head, end, text, mod);
-            // write text records
-            let _text = write_text_record(&symbol_table, line.directive().unwrap(), line.operand());
         }
     }
 
@@ -302,12 +322,12 @@ fn write_text_record(symtable: &Vec<Symbol>, directive: &str, operand: Option<&s
 }
 
 // writes head record
-fn write_head_record(start_symbol: &str, start_address: i32, length: i32) -> String {
+fn write_head_record(start_symbol: &str, start_address: &i32, length: i32) -> String {
     format!("H{:}{:#06X}{:#06X}\n", start_symbol, start_address, length)
 }
 
 // Writes end record
-fn write_end_record(start_address: i32) -> String {
+fn write_end_record(start_address: &i32) -> String {
     format!("E{:#06X}\n", start_address)
 }
 
@@ -321,10 +341,17 @@ fn write_end_record(start_address: i32) -> String {
 * I may be able to condense them down with Rust powers.
 */
 // This takes a collection of records, and fills them out
-fn add_mod_record(starting_address: i32, mod_length: i32, symbol: String, data_index: i32) {}
-
-fn write_mod_record(obj_data: ObjectData, /*data_records: data_records,?? */ data_index: i32) {
-    //format!("M{:#06X}{:#02X}+{:}\n");
+fn add_mod_record(
+    mod_records: &mut Vec<ModRecordData>,
+    starting_address: &i32,
+    mod_length: &i32,
+    symbol: &str,
+) {
+    mod_records.push(ModRecordData::new(
+        *starting_address,
+        *mod_length,
+        symbol.to_string(),
+    ));
 }
 
 fn find_symbol<'a>(symtable: &'a Vec<Symbol>, operand: &str) -> Option<&'a Symbol> {
