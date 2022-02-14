@@ -17,16 +17,28 @@ impl ObjectData {
             mod_records: Vec::new(),
         }
     }
-    pub fn head_record(&mut self) -> &mut str {
+    pub fn head_record(&self) -> &str {
+        &self.head_record
+    }
+    pub fn end_record(&self) -> &str {
+        &self.end_record
+    }
+    pub fn mod_records(&self) -> &Vec<String> {
+        &self.mod_records
+    }
+    pub fn text_records(&self) -> &Vec<String> {
+        &self.text_records
+    }
+    pub fn head_record_mut(&mut self) -> &mut str {
         &mut self.head_record
     }
-    pub fn end_record(&mut self) -> &mut str {
+    pub fn end_record_mut(&mut self) -> &mut str {
         &mut self.end_record
     }
-    pub fn mod_records(&mut self) -> &mut Vec<String> {
+    pub fn mod_records_mut(&mut self) -> &mut Vec<String> {
         &mut self.mod_records
     }
-    pub fn text_records(&mut self) -> &mut Vec<String> {
+    pub fn text_records_mut(&mut self) -> &mut Vec<String> {
         &mut self.text_records
     }
 }

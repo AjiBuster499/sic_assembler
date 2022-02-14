@@ -18,8 +18,8 @@ use directives::is_directive;
 use instructions::Instruction;
 use std::{
     env,
-    fs::File,
-    io::{BufRead, BufReader, Seek},
+    fs::{self, File},
+    io::{BufRead, BufReader, Result as ioResult, Seek, Write},
 };
 use symbols::Symbol;
 
@@ -82,7 +82,7 @@ pub fn run(config: Config) -> Result<(), &'static str> {
     let mut address_counter: i32 = 0; // address counter for symbols
     let mut symbol_table: Vec<Symbol> = vec![]; // symbol table, initially empty.
 
-    let sic_asm_file = File::open(config.filename);
+    let sic_asm_file = File::open(&config.filename);
 
     let sic_asm_file = match sic_asm_file {
 		    Ok(file) => file,
@@ -246,6 +246,13 @@ pub fn run(config: Config) -> Result<(), &'static str> {
                 if let Some(start_address) = starting_address {
                     write_end_record(&mut object_data, &start_address);
                     write_mod_record(&mut object_data, &mut mod_records);
+                    // write to file
+                    match write_to_file(&object_data, config.filename().to_string()) {
+                        Ok(_) => {
+                            break;
+                        }
+                        Err(_) => return Err("Error writing to file."),
+                    }
                 } else {
                     return Err(
                         // but sometimes humans err, and that's why we handle such cases
@@ -328,7 +335,9 @@ fn write_text_record(
             }
         }
     }
-    object_data.text_records().push(format!("T{}\n", text_data));
+    object_data
+        .text_records_mut()
+        .push(format!("T{}\n", text_data));
 }
 
 // writes head record
@@ -339,7 +348,7 @@ fn write_head_record(
     length: i32,
 ) {
     object_data
-        .head_record()
+        .head_record_mut()
         .to_string()
         .push_str(format!("H{:}{:#06X}{:#06X}\n", start_symbol, start_address, length).as_str());
 }
@@ -347,7 +356,7 @@ fn write_head_record(
 // Writes end record
 fn write_end_record(object_data: &mut ObjectData, start_address: &i32) {
     object_data
-        .end_record()
+        .end_record_mut()
         .to_string()
         .push_str(format!("E{:06X}\n", start_address).as_str());
 }
@@ -379,7 +388,7 @@ fn add_mod_record(
 
 fn write_mod_record(object_data: &mut ObjectData, mod_records: &mut Vec<ModRecordData>) {
     for record in mod_records {
-        object_data.mod_records().push(format!(
+        object_data.mod_records_mut().push(format!(
             "M{:#06X}{:#02X}+{:}\n",
             record.starting_address(),
             record.mod_length(),
@@ -500,4 +509,17 @@ fn initalize_opcodes(opcodes_list: &mut Vec<Instruction>) {
             i32::from_str_radix(opcodes[i], 16).ok().unwrap(),
         ));
     }
+}
+
+fn write_to_file(object_data: &ObjectData, filename: String) -> ioResult<()> {
+    let mut output_file = fs::File::create(format!("{}.obj", filename))?;
+    output_file.write_all(object_data.head_record().as_bytes())?;
+    for t_record in object_data.text_records() {
+        output_file.write_all(t_record.as_bytes())?;
+    }
+    for m_record in object_data.mod_records() {
+        output_file.write_all(m_record.as_bytes())?;
+    }
+    output_file.write_all(object_data.end_record().as_bytes())?;
+    Ok(())
 }
