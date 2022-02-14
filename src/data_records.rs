@@ -1,26 +1,33 @@
 // Data Record structs and methods
 #[allow(dead_code)]
 #[derive(Default, Debug)]
-pub struct ObjectData<'a> {
-    head_record: &'a str,
-    end_record: &'a str,
-    text_record: &'a str,
-    mod_record: &'a str,
+pub struct ObjectData {
+    head_record: String,
+    end_record: String,
+    text_records: Vec<String>,
+    mod_records: Vec<String>,
 }
 
-impl<'a> ObjectData<'a> {
-    pub fn new(
-        head_record: &'a str,
-        end_record: &'a str,
-        text_record: &'a str,
-        mod_record: &'a str,
-    ) -> Self {
+impl ObjectData {
+    pub fn new() -> Self {
         Self {
-            head_record,
-            end_record,
-            text_record,
-            mod_record,
+            head_record: String::new(),
+            end_record: String::new(),
+            text_records: Vec::new(),
+            mod_records: Vec::new(),
         }
+    }
+    pub fn head_record(&mut self) -> &mut str {
+        &mut self.head_record
+    }
+    pub fn end_record(&mut self) -> &mut str {
+        &mut self.end_record
+    }
+    pub fn mod_records(&mut self) -> &mut Vec<String> {
+        &mut self.mod_records
+    }
+    pub fn text_records(&mut self) -> &mut Vec<String> {
+        &mut self.text_records
     }
 }
 
@@ -37,5 +44,15 @@ impl ModRecordData {
             mod_length,
             symbol,
         }
+    }
+
+    pub fn starting_address(&self) -> &i32 {
+        &self.starting_address
+    }
+    pub fn mod_length(&self) -> &i32 {
+        &self.mod_length
+    }
+    pub fn symbol(&self) -> &str {
+        &self.symbol
     }
 }

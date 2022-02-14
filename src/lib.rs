@@ -13,6 +13,7 @@ mod symbols;
 
 use crate::data_records::ModRecordData;
 use ascii_to_hex::ascii_to_hex;
+use data_records::ObjectData;
 use directives::is_directive;
 use instructions::Instruction;
 use std::{
@@ -147,10 +148,7 @@ pub fn run(config: Config) -> Result<(), &'static str> {
     // pass 2 loop: Creating the records
     let mut starting_address: Option<i32> = None; // preserve the old starting address
     let _length = 3; // default length of object code
-    let mut _object_data: data_records::ObjectData;
-    let mut _head: String; // head record
-    let mut _end: String; // end record
-    let mut _text: String;
+    let mut object_data = ObjectData::new();
     let mut mod_records: Vec<ModRecordData> = vec![];
 
     reader.rewind().unwrap(); // reset the reader
@@ -176,10 +174,12 @@ pub fn run(config: Config) -> Result<(), &'static str> {
                     let line = AssemblyLine::new(None, broken_line.next(), broken_line.next());
 
                     // Need to write textRecords here
-                    _text =
-                        write_text_record(&symbol_table, line.directive().unwrap(), line.operand());
-                    // function to consolidate records
-                    // create_records_object(head, end, text, mod);
+                    write_text_record(
+                        &mut object_data,
+                        &symbol_table,
+                        line.directive().unwrap(),
+                        line.operand(),
+                    );
 
                     if !is_directive(line.directive().unwrap())
                         && line.directive().unwrap() != "RSUB"
@@ -188,7 +188,7 @@ pub fn run(config: Config) -> Result<(), &'static str> {
                             &mut mod_records,
                             &starting_address.unwrap(),
                             &4,
-                            line.symbol().unwrap(),
+                            line.symbol(),
                         );
                     }
                     let increment =
@@ -229,7 +229,8 @@ pub fn run(config: Config) -> Result<(), &'static str> {
                     // Define an ending address
                     let end_address = address_counter - starting_address.unwrap();
                     // write the head record
-                    _head = write_head_record(
+                    write_head_record(
+                        &mut object_data,
                         line.symbol().expect("ERROR: No program name included."),
                         &end_address,
                         starting_address.unwrap(),
@@ -243,7 +244,8 @@ pub fn run(config: Config) -> Result<(), &'static str> {
             } else if line.directive().unwrap() == "END" {
                 // In theory, END comes after START
                 if let Some(start_address) = starting_address {
-                    _end = write_end_record(&start_address);
+                    write_end_record(&mut object_data, &start_address);
+                    write_mod_record(&mut object_data, &mut mod_records);
                 } else {
                     return Err(
                         // but sometimes humans err, and that's why we handle such cases
@@ -253,9 +255,12 @@ pub fn run(config: Config) -> Result<(), &'static str> {
             }
 
             // write text records
-            _text = write_text_record(&symbol_table, line.directive().unwrap(), line.operand());
-            // function to consolidate records
-            // create_records_object(head, end, text, mod);
+            write_text_record(
+                &mut object_data,
+                &symbol_table,
+                line.directive().unwrap(),
+                line.operand(),
+            );
         }
     }
 
@@ -276,7 +281,12 @@ fn is_memory_out_of_bounds(current_counter: &i32) -> bool {
 // opcodes, directive for the line, operand for the line
 // length of the record, starting address, and text index
 // Some of these may be unnecessary with Rust
-fn write_text_record(symtable: &Vec<Symbol>, directive: &str, operand: Option<&str>) -> String {
+fn write_text_record(
+    object_data: &mut ObjectData,
+    symtable: &Vec<Symbol>,
+    directive: &str,
+    operand: Option<&str>,
+) {
     // this function wil return text_data
     let mut text_data: String = String::new();
     let mut symbol_address = 0;
@@ -318,17 +328,28 @@ fn write_text_record(symtable: &Vec<Symbol>, directive: &str, operand: Option<&s
             }
         }
     }
-    format!("T{}\n", text_data)
+    object_data.text_records().push(format!("T{}\n", text_data));
 }
 
 // writes head record
-fn write_head_record(start_symbol: &str, start_address: &i32, length: i32) -> String {
-    format!("H{:}{:#06X}{:#06X}\n", start_symbol, start_address, length)
+fn write_head_record(
+    object_data: &mut ObjectData,
+    start_symbol: &str,
+    start_address: &i32,
+    length: i32,
+) {
+    object_data
+        .head_record()
+        .to_string()
+        .push_str(format!("H{:}{:#06X}{:#06X}\n", start_symbol, start_address, length).as_str());
 }
 
 // Writes end record
-fn write_end_record(start_address: &i32) -> String {
-    format!("E{:#06X}\n", start_address)
+fn write_end_record(object_data: &mut ObjectData, start_address: &i32) {
+    object_data
+        .end_record()
+        .to_string()
+        .push_str(format!("E{:06X}\n", start_address).as_str());
 }
 
 /*
@@ -345,13 +366,26 @@ fn add_mod_record(
     mod_records: &mut Vec<ModRecordData>,
     starting_address: &i32,
     mod_length: &i32,
-    symbol: &str,
+    symbol: Option<&str>,
 ) {
-    mod_records.push(ModRecordData::new(
-        *starting_address,
-        *mod_length,
-        symbol.to_string(),
-    ));
+    if let Some(symbol) = symbol {
+        mod_records.push(ModRecordData::new(
+            *starting_address,
+            *mod_length,
+            symbol.to_string(),
+        ));
+    }
+}
+
+fn write_mod_record(object_data: &mut ObjectData, mod_records: &mut Vec<ModRecordData>) {
+    for record in mod_records {
+        object_data.mod_records().push(format!(
+            "M{:#06X}{:#02X}+{:}\n",
+            record.starting_address(),
+            record.mod_length(),
+            record.symbol()
+        ));
+    }
 }
 
 fn find_symbol<'a>(symtable: &'a Vec<Symbol>, operand: &str) -> Option<&'a Symbol> {
