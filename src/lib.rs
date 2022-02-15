@@ -4,6 +4,7 @@
 /* Big list of TODO
 * Error Handling in other places
 * * Maybe propagate it up to main.rs?
+* Records aren't being given to the ObjectData struct correctly.
 */
 
 mod data_records;
@@ -161,7 +162,6 @@ pub fn run(config: Config) -> Result<(), &'static str> {
                 // hit EOF
                 break 'pass2;
             }
-            print!("{:}", &buffer); // dev purposes
 
             match is_symbol_line(&buffer, &mut address_counter) {
                 0 => { // symbol line
@@ -312,10 +312,10 @@ fn write_text_record(
             symbol_address = *symbol.address();
         }
 
-        if let Some(opcode) = opcode {
+        if let Some(instruction) = opcode {
             if !is_directive(directive) {
                 // instruction, so the object code is OP and ADDR
-                text_data = format!("{:#02X}{:#04X}", opcode.opcode(), symbol_address);
+                text_data = format!("{:02X}{:04X}", instruction.opcode(), symbol_address);
             } else {
                 // It's just a directive
                 // BYTE directives can exceed the 60 character object code limit
@@ -323,9 +323,9 @@ fn write_text_record(
                 if operand.len() > 60 {
                     todo!(); // please do look forward to it (tm)
                 } else {
-                    if opcode.name() == "WORD" {
+                    if instruction.name() == "WORD" {
                         // word format is %06X
-                        text_data = format!("{:#06X}", opcode.opcode());
+                        text_data = format!("{:06X}", instruction.opcode());
                     } else {
                         // This was uncommented in C Code
                         // Dangit past me
@@ -335,9 +335,7 @@ fn write_text_record(
             }
         }
     }
-    object_data
-        .text_records_mut()
-        .push(format!("T{}\n", text_data));
+    object_data.add_text_records(format!("T{}\n", text_data));
 }
 
 // writes head record
@@ -347,18 +345,15 @@ fn write_head_record(
     start_address: &i32,
     length: i32,
 ) {
-    object_data
-        .head_record_mut()
-        .to_string()
-        .push_str(format!("H{:}{:#06X}{:#06X}\n", start_symbol, start_address, length).as_str());
+    object_data.set_head_record(format!(
+        "H{}{:06X}{:06X}\n",
+        start_symbol, start_address, length
+    ));
 }
 
 // Writes end record
 fn write_end_record(object_data: &mut ObjectData, start_address: &i32) {
-    object_data
-        .end_record_mut()
-        .to_string()
-        .push_str(format!("E{:06X}\n", start_address).as_str());
+    object_data.set_end_record(format!("E{:06X}\n", start_address));
 }
 
 /*
@@ -388,8 +383,8 @@ fn add_mod_record(
 
 fn write_mod_record(object_data: &mut ObjectData, mod_records: &mut Vec<ModRecordData>) {
     for record in mod_records {
-        object_data.mod_records_mut().push(format!(
-            "M{:#06X}{:#02X}+{:}\n",
+        object_data.add_mod_records(format!(
+            "M{:06X}{:02X}+{}\n",
             record.starting_address(),
             record.mod_length(),
             record.symbol()
@@ -514,12 +509,16 @@ fn initalize_opcodes(opcodes_list: &mut Vec<Instruction>) {
 fn write_to_file(object_data: &ObjectData, filename: String) -> ioResult<()> {
     let mut output_file = fs::File::create(format!("{}.obj", filename))?;
     output_file.write_all(object_data.head_record().as_bytes())?;
+    print!("{}", object_data.head_record());
     for t_record in object_data.text_records() {
         output_file.write_all(t_record.as_bytes())?;
+        print!("{}", t_record);
     }
     for m_record in object_data.mod_records() {
         output_file.write_all(m_record.as_bytes())?;
+        print!("{}", m_record);
     }
     output_file.write_all(object_data.end_record().as_bytes())?;
+    print!("{}", object_data.end_record());
     Ok(())
 }

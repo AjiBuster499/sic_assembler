@@ -1,5 +1,4 @@
 // Data Record structs and methods
-#[allow(dead_code)]
 #[derive(Default, Debug)]
 pub struct ObjectData {
     head_record: String,
@@ -29,17 +28,17 @@ impl ObjectData {
     pub fn text_records(&self) -> &Vec<String> {
         &self.text_records
     }
-    pub fn head_record_mut(&mut self) -> &mut str {
-        &mut self.head_record
+    pub fn set_head_record(&mut self, record: String) {
+        self.head_record = record;
     }
-    pub fn end_record_mut(&mut self) -> &mut str {
-        &mut self.end_record
+    pub fn set_end_record(&mut self, record: String) {
+        self.end_record = record;
     }
-    pub fn mod_records_mut(&mut self) -> &mut Vec<String> {
-        &mut self.mod_records
+    pub fn add_mod_records(&mut self, record: String) {
+        self.mod_records.push(record);
     }
-    pub fn text_records_mut(&mut self) -> &mut Vec<String> {
-        &mut self.text_records
+    pub fn add_text_records(&mut self, record: String) {
+        self.text_records.push(record);
     }
 }
 
